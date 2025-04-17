@@ -1,16 +1,20 @@
 #!/bin/bash
 
-BOLD="\e[1m"
-RED="\e[31m"
-GREEN="\e[32m"
-YELLOW="\e[33m"
-NC="\e[0m"
+# Safe color definitions using \033 instead of \e for better compatibility
+BOLD="\033[1m"
+RED="\033[31m"
+GREEN="\033[32m"
+YELLOW="\033[33m"
+NC="\033[0m"
 
 SWARM_DIR="$HOME/rl-swarm"
 TEMP_DATA_PATH="$SWARM_DIR/modal-login/temp-data"
 HOME_DIR="$HOME"
 
-cd $HOME
+cd "$HOME" || {
+    echo -e "${BOLD}${RED}[✗] Failed to change to home directory. Exiting.${NC}"
+    exit 1
+}
 
 if [ -f "$SWARM_DIR/swarm.pem" ]; then
     echo -e "${BOLD}${YELLOW}You already have an existing ${GREEN}swarm.pem${YELLOW} file.${NC}\n"
@@ -19,7 +23,7 @@ if [ -f "$SWARM_DIR/swarm.pem" ]; then
     echo -e "${BOLD}${RED}2) Delete existing swarm.pem and start fresh${NC}"
 
     while true; do
-        read -p $'\e[1mEnter your choice (1 or 2): \e[0m' choice
+        read -p $'\033[1mEnter your choice (1 or 2): \033[0m' choice
         if [ "$choice" == "1" ]; then
             echo -e "\n${BOLD}${YELLOW}[✓] Using existing swarm.pem...${NC}"
             mv "$SWARM_DIR/swarm.pem" "$HOME_DIR/"
@@ -29,16 +33,23 @@ if [ -f "$SWARM_DIR/swarm.pem" ]; then
             rm -rf "$SWARM_DIR"
 
             echo -e "${BOLD}${YELLOW}[✓] Cloning fresh repository...${NC}"
-            cd $HOME && git clone https://github.com/zunxbt/rl-swarm.git > /dev/null 2>&1
+            git clone https://github.com/zunxbt/rl-swarm.git || {
+                echo -e "${BOLD}${RED}[✗] Failed to clone repository. Exiting.${NC}"
+                exit 1
+            }
 
             mv "$HOME_DIR/swarm.pem" rl-swarm/
+            mkdir -p rl-swarm/modal-login/temp-data/
             mv "$HOME_DIR/userData.json" rl-swarm/modal-login/temp-data/ 2>/dev/null
             mv "$HOME_DIR/userApiKey.json" rl-swarm/modal-login/temp-data/ 2>/dev/null
             break
         elif [ "$choice" == "2" ]; then
             echo -e "${BOLD}${YELLOW}[✓] Removing existing folder and starting fresh...${NC}"
             rm -rf "$SWARM_DIR"
-            cd $HOME && git clone https://github.com/zunxbt/rl-swarm.git > /dev/null 2>&1
+            git clone https://github.com/zunxbt/rl-swarm.git || {
+                echo -e "${BOLD}${RED}[✗] Failed to clone repository. Exiting.${NC}"
+                exit 1
+            }
             break
         else
             echo -e "\n${BOLD}${RED}[✗] Invalid choice. Please enter 1 or 2.${NC}"
@@ -46,10 +57,17 @@ if [ -f "$SWARM_DIR/swarm.pem" ]; then
     done
 else
     echo -e "${BOLD}${YELLOW}[✓] No existing swarm.pem found. Cloning repository...${NC}"
-    cd $HOME && [ -d rl-swarm ] && rm -rf rl-swarm; git clone https://github.com/zunxbt/rl-swarm.git > /dev/null 2>&1
+    [ -d rl-swarm ] && rm -rf rl-swarm
+    git clone https://github.com/zunxbt/rl-swarm.git || {
+        echo -e "${BOLD}${RED}[✗] Failed to clone repository. Exiting.${NC}"
+        exit 1
+    }
 fi
 
-cd rl-swarm || { echo -e "${BOLD}${RED}[✗] Failed to enter rl-swarm directory. Exiting.${NC}"; exit 1; }
+cd rl-swarm || {
+    echo -e "${BOLD}${RED}[✗] Failed to enter rl-swarm directory. Exiting.${NC}"
+    exit 1
+}
 
 if [ -n "$VIRTUAL_ENV" ]; then
     echo -e "${BOLD}${YELLOW}[✓] Deactivating existing virtual environment...${NC}"
@@ -57,8 +75,23 @@ if [ -n "$VIRTUAL_ENV" ]; then
 fi
 
 echo -e "${BOLD}${YELLOW}[✓] Setting up Python virtual environment...${NC}"
-python3 -m venv .venv
-source .venv/bin/activate
+
+if ! python3 -m venv .venv; then
+    echo -e "${BOLD}${RED}[✗] Failed to create virtual environment. Ensure python3 and venv are installed.${NC}"
+    exit 1
+fi
+
+source .venv/bin/activate || {
+    echo -e "${BOLD}${RED}[✗] Failed to activate virtual environment.${NC}"
+    exit 1
+}
 
 echo -e "${BOLD}${YELLOW}[✓] Running rl-swarm...${NC}"
-./run_rl_swarm.sh
+
+if [ -f "./run_rl_swarm.sh" ]; then
+    chmod +x ./run_rl_swarm.sh
+    ./run_rl_swarm.sh
+else
+    echo -e "${BOLD}${RED}[✗] run_rl_swarm.sh not found in rl-swarm directory.${NC}"
+    exit 1
+fi
